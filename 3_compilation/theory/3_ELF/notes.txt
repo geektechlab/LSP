@@ -34,4 +34,5 @@ function is UND (undefined)
 
 ----------------
 [ objdump -D hello.o ] dissassembles the file
+[ objdump --section-headers hello.ko ] gives different section related info such as .text .bss .rodata .data etc.
 ----------------
