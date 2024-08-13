@@ -30,7 +30,9 @@ int main(int argc, char * argv[]){
   printf("Hello World!\n");
   printf("value = %d\n", 5);
   write(fd, "Linux", 5);
+  /* till here it wil print to file */
   fflush(stdout);
+  /* now onwards it will print to STDOUT */
   dup2(stdout_copy, STDOUT_FILENO);
   close(stdout_copy);
   printf("Hello Linux\n");
