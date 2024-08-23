@@ -1,0 +1,1 @@
+Two attacks down, moving onto the third. Let's now assume that the programmer has wised up to the two previous attacks. Now we are using full paths to executables and we are scrubbing the input to remove any potential bash commands prior to execution.

