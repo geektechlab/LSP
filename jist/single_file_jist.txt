@@ -1,0 +1,106 @@
+1)
+    list of commands:
+    - sudo -- super user do. If you prefix “sudo” with any command, it will run that command with elevated privileges which allows a user with proper permissions to execute a command as superuser.
+    - ls
+    - cd: Change directory. Allow the user to change between file directories.
+            cd --> Will change to the home directory
+            cd - --> Will switch to the old directory
+            cd ~ --> Will move to the home directory
+                $cd ~/Linux_System_Prog
+    - pwd: Will print the current working directory
+    - touch: Allows user to make files from the command line Interface
+    - rm: This command is used to remove files
+    - mkdir: Allows user to create a new directory.
+    - rmdir: Allows user to remove a directory
+    - mv: Allows user to move file from one place to another
+    - cp: $cp file1 file2
+    - clear: clear command will take the user back to the start prompt of directory you are currently operating in
+    - man: Use to show the manual of the command passed
+            $ man man
+            man has various sections, same command can be executable program, shell command, system call, library call, etc., so to differentiate we can specify. man <number> <command>. e.g., man 2 man. Number can be found using [man man].
+    - find: $find <path> -name 'filename'. $find / -name "*conf" -mtime 7.
+    - echo: It prints the strings that are passed as arguments to the standard output.
+            To append to a file
+            $ echo "Test Page" >> testpage 
+    - cat: cat stands for concatenate
+            Display the contents of the file. $cat /etc/passwd
+            Create a file with cat command. cat > file.txt. Will create a file 'file.txt' and allows user to type the content on the console.
+    - more: view contents of text file one page at a time.
+    - less: linux utility which can be used to read contents of text file one page(one screen) per time.
+    - head: outputs the first part (the head) of a file or files. head, by default, prints the first 10 lines. 
+    - tail: prints the last few number of lines (10 lines by default) of a certain file, then terminates.
+    - pipe | : Linux systems allow stdout of a command to be connected to stdin of another command. You can make it do so by using the pipe character ‘|’. command_1 | command_2 | command_3 | .... | command_N. $cat sample2.txt | head -7 | tail -5.
+    - tee : reads from the standard input and writes to both standard output and one or more files at the same time. $df -h | tee disk_usage.txt
+    - ps : Provides information about currently running processes. daemon can be created by &. generally ssh runs as daemon. [./hello &] will run hello executable as daemon. We can kill by [ kill %<number> ] given by jobs command.
+    - grep: It searches for the given string in the specified file.
+    - wc: word count. [ wc filename.txt ] will show number of lines, words and bytes
+    - top : displays the top processes in the system ( by default sorted by cpu usage ). 
+    - df : Displays the file system disk space usage.
+    - uname : displays important system information:Kernel name, Host name, Kernel release number, Processor type, etc.,
+    - date : Set the system date.
+    - ping : Check network connectivity
+    - which : Used to locate the executable file associated with the given command by searching it in the path environment variable.
+    - whoami : whoami command print the name of current user
+    - lsof : lsof mean List of all open files.
+    - history
+    - time: Find time taken by a command/program on Linux Shell
+            real: Total end to end time taken by program/command
+            user: Time taken in user mode.
+            sys: Time taken in kernel mode
+
+2)
+    - tree -L 1 /. show only the 1st level of the directory tree starting at root (/).
+
+    In Linux however, the root of the filesystem doesn’t correspond with a physical device or location, it’s a logical location of simply “/”.
+        / (Root) : Every single file and directory starts from the root directory
+        /boot :  Contains files required for starting your system. Boot loader files, e.g., kernels, initrd. config-* - contains kernel configuration settings. e.g. if we want to know if HID is enable, we can run [ cat /boot/config-`uname -r`-generic | grep HIDRAW.
+                    - initrd.img-* - initrd - initial ram disk is loaded by the kernel at boot time, it loads temporary file system into RAM at the time of booting, before actually mounting actual file system
+                    - vmlinuz-* - virtual memory Linux kernel zipped. vmlinuz is a compressed Linux Kernel image which is used at the time of booting Linux operating system. vmlinuz used by Intel. Arm uses uimage if we use u-boot. x86, grub uses vmlinuz. When grub starts, it uncompresses this image and starts loading.
+                    - System.map-* - the System.map file is a symbol table used by the kernel. A symbol table is a look-up between symbol names ( variable or function ) and their addresses in memory. It is useful when kernel panics it will print various address, then we can use directly this system.map file to convert those addresses into function or variable names.
+                    - grub/grub.conf - This file is used for boot loader grub to load grub related configuration. If we want to modify any configuration in grub bootloader, we use this.
+		- /bin folder: bin stands for binary which means an executable file. This folder contains basic commands such as cat, chmod, chgrp, chown, date, dir, dd, df, ln, mv, echo.
+		- /sbin: stands for system binaries or super user binaries. It contains commands that need to be available at the very beginning of the OS initialization and at the shutdown end too. Contains commands required for changing system properties or system level settings such as disk management, network management etc. e.g. fsck, root, init, ifconfig
+		- /usr is generally for user / administrator added binaries.
+				/usr/bin: commands which are not installed locally should be placed in this directory. Eg. vi, atq, bc, awk, cal, cmp, dig, diff, du, env, find, free, ftp, gcc, groups, id, info iostat, last, lsof, md5sum, nmap, rar, seq, tail, top.
+		- /usr/sbin: contains non-vital system utilities that are used after booting (i.e., starting the system) by the system administrator. Eg.  adduser, chroot, groupadd, grub related commands, tcpdump. Also contains some daemons, which are programs that run silently in the background: Eg. bluetoothd, dropbear
+		- /usr/local is a place where files built by the system administrator are placed
+			- /usr/local/bin: Binaries for programs local to the site.
+			- /usr/local/sbin: Locally installed programs for system administration
+		- /dev: Linux/Unix treats hardware devices too as files. All hardware files are present in /dev(Device ) folder. e.g., /dev/null. Many of these are generated at boot time or even on the fly.
+				character devices example:
+					/dev/lp0 represents the first printer port
+					/dev/ttyS0 represents the first serial port
+				Block devices:
+					/dev/hd* represents hard disk drives.
+					/dev/sd* represents SCSI devices
+		- /etc: Contains system-wide configuration files. Contains configuration files required by all programs. This also contains startup and shutdown shell scripts used to start/stop individual programs.
+			Example: /etc/resolv.conf, /etc/logrotate.conf. [ cat /etc/passwd ]
+			/etc/hostname -- Contains the hostname of your machine
+			/etc/modules -- List of modules to be loaded at startup.
+			/etc/hosts -- The hosts file is used to map hostname to IP Address
+			/etc/fstab -- this file automatically mounts filesystems that are spread across multiple drives or separate partitions. This file is checked when the system boots and filesystems are mounted. During boot, kernel reads this file and mounts all filesystem listed here. e.g. [ cat /etc/fstab ] and the verify same UUID using [ blkid /dev/<filesystem> ]
+			/etc/passwd - user details
+		- /home: for all users to store their personal files. For example, if your user name is bob, you have a home folder located at /home/bob. Each user only has write access to their own home folder and must obtain elevated permissions (become the root user) to modify other files on the system. [ echo $HOME ] gives path of home folder for a user. If we become root by su or sudo -s command the  above command will display root home folder.
+		- /root: Home directory of root user
+		- /lib: Libraries essential for the binaries in /bin/ and /sbin/. /lib/modules -- All loadable kernel modules are stored in this directory. /lib<qual> (lib32, lib64 etc): 32bit, 64 bit libs of the same name. A 64-bit system may have compatibility for 32-bit binary.
+		-/media: media directory is where external storage will be automatically mounted when you plug it in and try to access it. For example, when you insert a CD into your Linux system, a directory will automatically be created inside the /media directory. 
+		- /mnt: A directory for temporarily mounted filesystems. For example, if youre mounting a Windows partition to perform some file recovery operations, you might mount it at /mnt/windows. Eg. iso files: mount -t iso9660 -o loop path/to/image.iso /mnt/
+		- /tmp: Temporary files. Often not preserved between system reboots, and may be severely size restricted.
+		- /run: /run is another new directory. System processes use it to store temporary data for their own nefarious reasons. Mostly contains pid related information.
+		- /srv: The /srv directory contains data for servers ( such as Apache, FTP, web server etc. ). If you are running a web server from your Linux box, your HTML files for your sites would go into /srv/http (or /srv/www). If you were running an FTP server, your files would go into /srv/ftp.
+		- var: /var contains variable data files. This includes spool directories and files, administrative and logging data, and transient and temporary files. /var/log contains log files for differenctt applications. dmesg is also located here. /var/mail contains users emails. /var/run holds a lot status and parameter information of actively running process daemons.
+		- opt: third party installers
+		- lost+found: fsck command is used to recover these files. Any file to be recovered is kept in this folder
+		- Proc: These are virtual file systems most used in device drivers. It means that files are not present in hard disk or in any media storage. these are stored in RAM and whenever we start system, files will be created in RAM. e.g. if we do [ ls -l proc/cmdline ], size will show as 0. but [ cat proc/cmdline ] will give print the content. Since it has content, it should have some size. But since it is not stored in hard dsik/storage/memory, ls shows 0 size. difference between virtual file and actual file:
+				virtual file has 0 size
+				actual file has some size
+			proc contains special files that represent system and process information. quite a lot of system utilities are simply calls to files in this directory.
+				'lsmod' is the same as 'cat /proc/modules'. We can verify it by [ strace lsmod | grep modules ]
+				'lspci' is a synonym for 'cat /proc/pci'. We can verify it by [ strace lspci ] tahat it uses sys filesystem.
+				/proc/meminfo contains a bunch of information about your system's memory
+				/proc/uptime uptime information (in seconds).
+				/proc/partitions detailed info about partitions available to the system.
+				/proc/cmdline kernel command line information.
+			The /proc filesystem maps mostly to the process table. It also raised the issue that /proc was SUPPOSED to be for the process table. So they added another instance, and named it sys aimed to hold system information.
+		- sys: sysfs is used by programs such as udev to access device and device driver information. To get the a network card's MAC address. cat /sys/class/net/eth0/address.
+	All process related informations are present in proc filesystem. [ ls /proc ]. Whereas, all hardware related informations are present in sys filesystem. [ ls /sys ]. Whenever we create a new module, new folder will get created in /sys/module directory. Whenever we add a new device, new folder will get created in /sys/dev or /sys/bus directory.
