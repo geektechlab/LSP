@@ -846,3 +846,487 @@ https://github.com/prnjl99/Bare_metal_embedded_development/blob/main/build_scrip
     If you need to view the library calls from a live process, you can use ltrace(1)’s “-p” option: $ ltrace -p 2644. The parameter -c outputs the number and duration of the library calls that have occurred. $ ltrace -c ls /
 
 22)
+    What is a thread? A thread is a sequence of instructions within a process that can be executed independently of other code. Multiple threads within one process share:
+        Heap
+        Data
+        Code
+        open files (descriptors)
+        signals and signal handlers
+        current working directory
+        User and group id
+
+    Each thread will have its own
+        Thread ID
+        set of registers, stack pointer
+        stack for local variables, return addresses
+        signal mask
+        priority
+
+    Advantages of Threads:
+        - Useful when you want to make a program appear to do two things at once. E.g. Real time word count on a document while still editing the text. One thread can manage the user's input and perform editing. The other thread will continuously update a word count variable.
+        - Better utilization of hardware resources. We have laptops and desktops containing CPU's with multiple cores, using multiple threads inside a process can better utilize the hardware resources.
+        - Context switch between threads is faster when compared to the context switch between processes ( add reason from Divy's message )
+
+    Drawbacks of Threads:
+        - We should carefully design multithreaded programs as most of the resources of the process are shared
+        - Debugging a multithreaded program is much, much harder than debugging a single-thread program.
+
+    gettid returns the caller's thread ID (TID). [ man 2 gettid ].
+
+    if I want to pass more than one argument to thread function how can I accomplish that ? through array of argumnets and then pointer variable ?
+
+    pthread_exit: When a thread terminates, it calls the pthread_exit function, much a process calls exit when it terminates. This function terminates the calling thread, returning a pointer to an object. Never return a pointer to a local variable, because the variable will be gone when the thread exits.
+        #include <pthread.h>
+        void pthread_exit(void *retval);
+
+    pthread_join: pthread_join is the thread equivalent of wait that processes use to collect child processes.
+        int pthread_join(pthread_t thread, void **thread_return);
+        First parameter is the thread for which to wait
+        Second argument is a pointer to pointer that itself points to the return value from the thread.
+
+    What is the purpose of pthread_join?
+        Wait for a thread to finish
+        Clean up thread resources
+        Grabs the return value of the thread
+
+    What happens if you don't call pthread_join? Finished threads will continue to consume resources. Eventually, if enough threads are created, pthread_create will fail. In practice, this is only an issue for long-running processes but is not an issue for simple, short-lived processes as all thread resources are automatically freed when the process exits.
+
+    pthread_join vs wait:
+    Condition :
+        A thread being waited for must have its detached state attribute set as joinable, not detached. None; any child process can (and in fact must) be waited upon.
+    Hierarchy:
+        None: any thread can join on any other thread; there is no requirement of a parent-child relationship. In fact, we do not consider threads to live within a strict parent-child hierarchy as processes do; all threads are peers. A strict parent-child hierarchy exists; only a parent can wait for a child process.
+    Order:
+        With threads, one is forced to join (wait) upon the particular thread specified as the parameter to pthread_join(3). With wait, a process can wait upon the death (or stoppage) of any child, or specify a particular child process to wait for with waitpid. So, it wait will complete for any of the child process.
+    Signalling:
+        No signal is sent upon a thread's death. Upon a process's death, the kernel sends the SIGCHLD signal to the parent process.
+
+    Initially, your main() program comprises a single, default thread. All other threads must be explicitly created by the programmer. To create a thread use the function pthread_create. This function takes four arguments:
+        int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg);
+            The first is a pointer to a variable that will hold the id of the newly created thread.
+            The second is a pointer to attributes that we can use to tweak and tune some of the advanced features of pthreads
+            The third is a pointer to a function that we want to run
+            Fourth is a pointer that will be given to our function
+
+    when we create a new thread using pthread_create(), which thread will start executing first, the parent thread or the new thread ? no gurantee is given as to which thread will start executing first.
+
+    what is the thing needs to be remembered for returned value? we need to rember that by the time pthread_join() collects the return value from the terminated thread, the thread might be recycled and the return value might be pointing to something else.
+
+    what are some ways of handling the return value? as return value can never be a stack variable, there are two ways of handling the return variable.
+        i) create a struct and pass it the pthread_create() function itself, which the thread function will fill it before exiting the  function.
+        ii) use a global variable to pass the return value.
+        iii) pass a specific location to the thread that is created detached, and let the main thread use the return value, when suits.
+
+    The main thread, by invoking pthread_exit(3), has exited before the other threads in the process; the Linux kernel thus marks it as a zombie. How to prevent the main thread from becoming zombie? The answer is straightforward: do not allow the main thread to terminate before the other threads in the application. in other words, the recommendation is to always keep main() alive, waiting for all the other threads to die, before it itself terminates (and thus the process terminates).
+
+    MultiProcess vs Mulithreads:
+        fork.c ====>create and destroy a process by calling fork(2) and subsequently exiting in a loop (50000 times)
+        $ time ./fork
+
+        thread.c ===> create and destroy threads using pthread_create in a loop (50000 times)
+        $ time ./thread
+
+    Why is fork slower than thread ? Linux makes heavy use of the performance-enhancing copy-on-write(COW) memory techniques within its internal implementation of fork(2). Thus, it begs the question, if COW is heavily used, then what is slowing the fork down?
+
+    The short answer:
+        page table creation and setup cannot be COW-ed; it takes a while to do.
+        When creating threads of the same process, this work (page table setup) is completely skipped.
+
+    A far more accurate way to measure the time spent—and performance characteristics in general—is by using the well-known perf(1) utility.
+    $ perf stat ./fork
+    $ perf stat ./thread
+
+    What is the difference between pthread_exit and pthread_join?
+        - pthread_exit() will terminate the thread that is called.If you call it from your main thread,the main thread is terminated and your spawned threads continue execution. So anything you write after pthread_exit in the main thread will not be execcuted.This will be useful in a scenario in which your main thread has to just spawn threads.
+        - pthread_join() will suspend the execution of the currently running thread until the particular thread you want is terminated,after that it resumes its execution.Useful where you have to wait until a particular thread completes its execution.
+
+    If you write exit or return in your main thread, the whole process is terminated,but if you write pthread-exit in your main thread only that particular thread terminates and remaining threads continue their execution.
+
+    Can you pass pointers to stack variables from one thread to another? Yes. However you need to be very careful about the lifetime of stack variables.
+
+    With every thread some resources are associated like stack etc. When a thread exits ideally these resources should be reclaimed by process automatically. But that doesn’t happens always. It depends on which mode thread is running.
+
+    A Thread can run in two modes i.e.
+        Joinable Mode
+        Detached Mode
+
+    By default a thread runs in joinable mode. Joinable thread will not release any resource even after the end of thread function, until some other thread calls pthread_join() with its ID. A Detached thread automatically releases it allocated resources on exit. No other thread needs to join it. But by default all threads are joinable, so to make a thread detached we need to call pthread_detach() with thread id.
+
+23)
+    In C, we use fork() to create new process and pthread_create to create a new thread. Both internally uses clone system call provided by Linux Kernel. You can see from strace, in both thread and process creation, clone system call is used and arguments are changed.
+
+    Following are the options user can specify while clone():
+        1. CLONE_VM: Virtual Memory is shared between the calling process and child process. That is if any of the calling process or child process modify the memory it will be visible in the other process.
+        2. CLONE_FS: File system attributes are shared. E.g. root directory, current working directory, file mode creation mask.
+        3. CLONE_FILES: If set, Parent and Child will share the table of open file descriptors. These descriptors are those values returned by open, socket, pipe etc. Modification in child will also modify the file descriptor table in parent.
+        4. CLONE_SIGHAND: If set, Parent and child processes will share the same signal handler table. Modification by one process will affect the other process.
+        5. CLONE_THREAD: Child is placed in the same thread group id as the parent. It means the pid of the parent and child will be the same, but the thread id will be different. You can get thread id by calling gettid() API.
+
+    $ strace ./1_thread | grep clone
+    $ strace ./2_fork | grep clone
+    check which call use which options in clone and see how thread is fast compared to fork
+
+    Can you fork a process with multiple threads?
+
+    What is the expected output of the program?
+    Ans: 2*loops
+
+    If you say the above answer it is wrong, because the increment is not an atomic operation. Increment when converted to assembly will not be in single instruction.Hence the difference. One way to solve is to make increment atomic. This can be done by using atomic operator provided by GNU. The above code suffers from a race condition - the value of i is changing. The new threads start later (in the example output the last thread starts after the loop has finished). To overcome this race-condition, we will give each thread a pointer to it's own data area. These are synchronization locks that are used to prevent race conditions and ensure proper synchronization between threads running in the same program.
+
+    Stack Location: Where in memory (technically, where in the VAS of the given process) does the thread stack actually reside? The stack of the main thread is always situated at the very top of the process VAS. The stacks of all other threads in the process are located somewhere between the process heap segment and the stack of main.
+
+    OS and threading system to arrange to multiplex the threads on the CPUs. Each thread is given a turn on some CPU. When it goes to do I/O, or a fixed amount of time has expired, the OS pauses the thread (saving off all of its machine state), and selects another thread to run. It then loads the saved machine state from the new thread onto the CPU and starts that thread at the spot where it last left off (or at the beginning if it was just created). The process of pausing one thread to run another is called pre-emption and the second thread is said to pre-empt the first. The process of switching to a new thread (as a result of a pre-emption event) is called context switching and the saved machine state that is necessary to get a thread running again after a pause is often called a context.
+
+    When multiple threads of control share the same memory, we need to make sure that each thread sees a consistent view of its data. If each thread uses variables that other threads don’t read or modify, no consistency problems will exist Similarly, if a variable is read-only, there is no consistency problem with more than one thread reading its
+    value at the same time. However, when one thread can modify a variable that other  threads can read or modify, we need to synchronize the threads to ensure that they don’t use an invalid value when accessing the variable’s memory contents.
+
+    In this example, thread A reads the variable and then writes a new value to it, but the write operation takes two memory cycles. If thread B reads the same variable between the two write cycles, it will see an inconsistent value.
+        Thread A        Thread B
+        read
+        write1
+                        read
+        write2
+
+    A critical section is a section of code that can only be executed by one thread at a time, if the program is to function correctly. If two threads (or processes) were to execute code inside the critical section at the same time then it is possible that program may no longer have correct behavior.
+
+    Mutex: A mutex is basically a lock that we set (lock) before accessing a shared resource and release (unlock) when we’re done. While it is set, any other thread that tries to set it will block until we release it. If more than one thread is blocked when we unlock the mutex, then all threads blocked on the lock will be made runnable, and the first one to run will be able to set the lock. A mutex variable is represented by the pthread_mutex_t data type.
+
+    If the mutex is unlocked at the time pthread_mutex_trylock is called, then pthread_mutex_trylock will lock the mutex without blocking and return 0. Otherwise, pthread_mutex_trylock will fail, returning EBUSY without locking the mutex.
+
+    A thread will deadlock itself if it tries to lock the same mutex twice. When we use more than one mutex in our programs, a deadlock can occur if we allow one thread to hold a mutex and block while trying to lock a second mutex at the same time that another thread holding the second mutex tries to lock the first mutex.  Neither thread can proceed, because each needs a resource that is held by the other, so we have a deadlock.
+
+
+    No, the other threads will continue. It's only when a thread attempts to lock a mutex that is already locked, will the thread have to wait.
+
+    Can I create mutex before fork-ing? Yes - however the child and parent process will not share virtual memory and each one will have a mutex independent of the other.
+
+    If one thread locks a mutex can another thread unlock it? No. The same thread must unlock it.
+
+
+    What is the Reader Writer Problem?
+    There is a shared resource which should be accessed by multiple processes. There are two types of processes in this context. They are reader and writer. Any number of readers can read from the shared resource simultaneously, but only one writer can write to the shared resource. When a writer is writing data to the resource, no other process can access the resource. A writer cannot write to the resource if there are non zero number of readers accessing the resource at that time.
+
+    read() {
+      lock(&m)
+      // do read stuff
+      unlock(&m)
+    }
+
+    write() {
+      lock(&m)
+      // do write stuff
+      unlock(&m)
+    }
+
+    At least our first attempt does not suffer from data corruption (readers must wait while a writer is writing and vice versa)! However readers must also wait for other readers.
+
+    Reader-Writer Locks: Reader–writer locks are similar to mutexes, except that they allow for higher degrees of parallelism. With a mutex, the state is either locked or unlocked, and only one thread can lock it at a time. Three states are possible with a reader–writer lock:
+        locked in read mode,
+        locked in write mode, and
+        unlocked.
+
+    Only one thread at a time can hold a reader–writer lock in write mode, but multiple threads can hold a reader–writer lock in read mode at the same time. When a reader–writer lock is write locked, all threads attempting to lock it block until it is unlocked. When a reader–writer lock is read locked, all threads attempting to lock it in read mode are given access, but any threads attempting to lock it in write mode block until all the threads have released their read locks.
+
+    Reader–writer locks are well suited for situations in which data structures are read more often than they are modified. Reader–writer locks are also called shared–exclusive locks. When a reader–writer lock is read locked, it is said to be locked in shared mode. When it is write locked, it is said to be locked in exclusive mode. As with mutexes, reader–writer locks must be initialized before use and destroyed before freeing their underlying memory.
+
+        #include <pthread.h>
+        int pthread_rwlock_init(pthread_rwlock_t *restrict rwlock, const pthread_rwlockattr_t *restrict attr);
+        int pthread_rwlock_destroy(pthread_rwlock_t *rwlock);
+
+    A reader–writer lock is initialized by calling pthread_rwlock_init. We can pass a null pointer for attr if we want the reader–writer lock to have the default attributes. Before freeing the memory backing a reader–writer lock, we need to call pthread_rwlock_destroy to clean it up. To lock a reader–writer lock in read mode, we call pthread_rwlock_rdlock. To  write lock a reader–writer lock, we call pthread_rwlock_wrlock. Regardless of how we lock a reader–writer lock, we can unlock it by calling pthread_rwlock_unlock.
+
+24)
+    What Is A Condition Variable? A condition variable is a mechanism that allows threads to wait (without wasting CPU cycles) for some even to occur. Several threads may wait on a condition variable, until some other thread signals this condition variable (thus sending a notification).
+
+    At this time, one of the threads waiting on this condition variable wakes up, and can act on the event. It is possible to also wake up all threads waiting on this condition variable by using a broadcast method on this variable. Note that a condition variable does not provide locking. Thus, a mutex is used along with the condition variable, to provide the necessary locking when accessing this condition variable.
+
+    Creation of a condition variable requires defining a variable of type pthread_cond_t, and initializing it properly. We can assign the constant PTHREAD_COND_INITIALIZER to a statically allocated condition variable, but if the condition variable is allocated dynamically, we can use the pthread_cond_init function to initialize it. We can use the pthread_cond_destroy function to deinitialize a condition variable before freeing its underlying memory.
+        #include <pthread.h>
+        int pthread_cond_init(pthread_cond_t *restrict cond,
+        const pthread_condattr_t *restrict attr);
+    Unless you need to create a conditional variable with nondefault attributes, the attr argument to pthread_cond_init can be set to NULL.
+
+        int rc = pthread_cond_signal(&got_request);
+    Or by using the broadcast function:
+        int rc = pthread_cond_broadcast(&got_request);
+
+    Waiting On A Condition Variable: If one thread signals the condition variable, other threads would probably want to wait for this signal. They may do so using one of two functions, pthread_cond_wait() or pthread_cond_timedwait(). Each of these functions takes a condition variable, and a mutex (which should be locked before calling the wait function), unlocks the mutex, and waits until the condition variable is signaled, suspending the thread's execution.
+
+    If this signaling causes the thread to awake (see discussion of pthread_cond_signal() earlier), the mutex is automagically locked again by the wait funciton, and the wait function returns. The only difference between these two functions is that pthread_cond_timedwait() allows the programmer to specify a timeout for the waiting, after which the function always returns, with a proper error value (ETIMEDOUT) to notify that condition variable was NOT signaled before the timeout passed. The pthread_cond_wait() would wait indefinitely if it was never signaled.
+
+    What does pthread_cond_wait do? The call pthread_cond_wait performs three actions:
+        1. unlock the mutex
+        2. waits (sleeps until pthread_cond_signal is called on the same condition variable). It does 1 and 2 atomically.
+        3. Before returning, locks the mutex
+
+    Why do Condition Variables also need a mutex?
+        Reason 1: The simplest to understand is that it prevents an early wakeup message (signal or broadcast functions) from being 'lost.'. Imagine the following sequence of events (time runs down the page) where the condition is satisfied just before pthread_cond_wait is called. In this example the wake-up signal is lost!
+            Thread 1            Thread 2
+            while (answer < 42) {
+                            answer++
+                            p_cond_signal(cv)
+            p_cond_wait(cv, m)
+        If both threads had locked a mutex, the signal can not be sent until after pthread_cond_wait(cv, m) is called (which then internally unlocks the mutex)
+        Reason 2: A second common reason is that updating the program state (answer variable) typically requires mutual exclusion - for example multiple threads may be updating the value of answer.
+
+    Thread Cancellation: Cancellation allows one thread to terminate another. One reason you may want to cancel a thread is to save system resources (such as CPU time) when your program determines that the thread's activity is no longer necessary. A simple example of a thread you might want to cancel would be a thread performing a read-only data search. If one thread returns the results you are looking for, all other threads running the same routine could be canceled. When we want to terminate a thread, we can use the pthread_cancel function. This function gets a thread ID as a parameter, and sends a cancellation request to this thread. It will only sends request, doesn't cancel.
+
+    Barriers: How do I wait for N threads to reach a certain point before continuing onto the next step? Suppose we wanted to perform a multi-threaded calculation that has two stages, but we don't want to advance to the second stage until the first stage is completed. We could use a synchronization method called a barrier. When a thread reaches a barrier, it will wait at the barrier until all the threads reach the barrier, and then they'll all proceed together.
+
+    Think of it like being out for a hike with some friends. You agree to wait for each other at the top of each hill (and you make a mental note how many are in your group). Say you're the first one to reach the top of the first hill. You'll wait there at the top for your friends. One by one, they'll arrive at the top, but nobody will continue until the last person in your group arrives. Once they do, you'll all proceed.
+
+    The thread calling pthread_barrier_wait is put to sleep if the barrier count (set in the call to pthread_barrier_init) is not yet satisfied. If the thread is the last one to call pthread_barrier_wait, thereby satisfying the barrier count, all of the threads are awakened.
+
+    When you create many threads that cooperate to accomplish a single task, you must sometimes perform a single operation up front so that all of these threads can proceed. For instance, you may need to open a file or initialize a mutex. Up to now, we've had our boss thread handle these chores, but that's not always feasible. The pthread_once mechanism is the tool of choice for these situations.
+
+    It, like mutexes and condition variables, is a synchronization tool, but its specialty is handling synchronization among threads at initialization time. If the pthread_once function didn't exist, we'd have to initialize all data, mutexes, and condition variables before we could create any thread that uses them.
+
+    Per-thread signal masks: Like a traditional process, a thread has a signal mask that indicates which asynchronous signals it's willing to handle (these are considered unblocked) and which ones it's not (these are considered blocked). threads inherit the signal mask of the thread that issued the pthread_create that created them. Use the pthread_sigmask call to block and unblock signals in the mask. When an asynchronously generated signal arrives at a process, it is handled once by exactly one thread in the process. The system selects this thread by referring to the collection of per-thread signal masks of all the threads.  If more than one thread has the signal unblocked, the system arbitrarily selects one of them.
+
+    What happens to a multithreaded Linux process if it gets a signal? Each thread has its own signal mask, but the signal disposition is shared by all threads in the process. As a consequence, individual threads can block signals, but when a thread modifies the action associated with a given signal, all threads share the action. Thus, if one thread chooses to ignore a given signal, another thread can undo that choice by restoring the default disposition or installing a signal handler for that signal.
+
+    "Private" thread data - Thread-Specific Data: In "normal", single-thread programs, we sometimes find the need to use a global variable. It is frequently a bad practice to have global variables, but they sometimes do come handy. Especially if they are static variables - meaning, they are recognized only on the scope of a single file. In multi-threaded programs, we also might find a need for such variables. We should note, however, that the same variable is accessible from all the threads, so we need to protect access to it using a mutex, which is extra overhead. Further more, we sometimes need to have a variable that is 'global', but only for a specific thread. Or the same 'global' variable should have different values in different threads.
+
+    For example, consider a program that needs to have one globally accessible linked list in each thread, but not the same list. Further, we want the same code to be executed by all threads. In this case, the global pointer to the start of the list should be point to a different address in each thread. In order to have such a pointer, we need a mechanism that enables the same global variable to have a different location in memory. This is what the thread-specific data mechanism is used for.
+
+    Keys with the same name in two separate threads always point to different memory locations - this is handled by the library functions that allocate memory blocks to be accessed via these keys.
+
+25)
+    What is IPC? Inter process communication is any way for one process to talk to another process. Signals was one kind of IPC Mechanism.
+
+    What is a pipe? We use the term pipe to mean connecting a data flow from one process to another. Generally you attach or pipe the output of one process to the input of another. For shell commands, this is done using the pipe character to join the commands
+        $ command1 | command2
+
+        1. The standard input to command1 will comes from the terminal keyboard
+        2. The standard output from command1 is fed to command2 as its standard input
+        3. The standard output from command2 is connected to the terminal screen.
+
+    A pipe is created by calling the pipe function.
+        #include <unistd.h>
+        int pipe(int fd[2]);
+            --> pipe is passed (a pointer to) an array of two integer file descriptors.
+            --> it fills the array with two new file descriptors and returns a zero.
+            --> The two file descriptors returned are connected in a special way.
+            --> Any data written to file_descriptor[1] can be read back from file_descriptor[0].
+            --> The first element of the array is the reading-end of the pipe, the second is the writing end.
+
+    You should be aware that the effect of trying to write using file_descriptor[0] or read using file_descriptor[1] is undefined. A pipe in a single process is next to useless. Normally, the process that calls pipe then calls fork, creating an IPC channel from the parent to the child, or vice versa. fork() man page tells us that the child will receive a copy of all the parent's file descriptors, and this includes a copy of the pipe's file descriptors.
+
+    The mistake in above code is that there is still a reader for the pipe! The child still has the pipe's first file descriptor open. When forking, It is common practice to close the unnecessary (unused) end of each pipe in the child and parent process. For example the parent might close the reading end and the child might close the writing end (and vice versa if you have two pipes).
+
+    What happens if a child process won't close the pipe from writing, while reading? If the process — parent or child — is not going to use the write end of a pipe, it should close that file descriptor. Similarly for the read end of a pipe. The system will assume that a write could occur while any process has the write end open, even if the only such process is the one that is currently trying to read from the pipe, and the system will not report EOF,
+
+    How to check if the pipe is opened before writing? If I write a message to a closed pipe then program will crash
+
+    Named Pipes/FIFO: Unnamed pipes (the kind we've seen up to this point) live in memory (do not take up any disk space) and are a simple and efficient form of inter-process communication (IPC) that is useful for streaming data and simple messages. Once all processes have closed, the pipe resources are freed. Unnamed pipes can be used only between related processes when a common ancestor has created the pipe. An alternative to unamed pipes is named pipes created using mkfifo. FIFOs are sometimes called named pipes. With FIFOs, however, unrelated processes can exchange data
+
+    a FIFO is a type of file. One of the encodings of the st_mode member of the stat structure indicates that a file is a FIFO. We can test for this with the S_ISFIFO macro. Creating a FIFO is similar to creating a file. Indeed, the pathname for a FIFO exists in the file system.
+        #include <sys/stat.h>
+        int mkfifo(const char *path, mode_t mode);
+        int mkfifoat(int fd, const char *path, mode_t mode);
+
+26)
+    three different mechanisms for inter-processes communication:
+        Message queues : pass messages between processes
+        Semaphores : synchronize for multiple processes by kernel
+        Shared memory: share region of memory
+
+    Shared Memory: POSIX shared memory is an inter-process communication (IPC) mechanism defined in POSIX specification. Shared memory is the fastest form of IPC available. Once the memory is mapped into the address space of the processes that are sharing the memory region, no kernel involvement occurs in passing data between the processes.
+
+    What we mean by ‘‘no kernel involvement’’?  the processes do not execute any system calls into the kernel to pass the data. The problem with these forms of IPC—pipes, FIFOs, and message queues—is that for two processes to exchange information, the information has to go through the kernel. Shared memory provides a way around this by letting two or more processes share a region of memory. The processes must, of course, coordinate or synchronize the use of the shared memory among themselves.
+    $man 7 shm_overview
+
+    Use case of shared memory: As a simple example you could reserve just a few bytes and change the value in shared memory when you want the child process to quit.
+
+    problem: sysnchronization is not taken care by kernel. We have to do that.
+
+    share memory objects have kernel persistence. Shared memory object will exist untill the system is shut down or untill all processes have umapped the object and it has been deleted with shm_unlink(). shared memory objects are created in tmpfs virtual filesystem and mounted under /dev/shm. tmpfs in mounted on /dev/shm and it similar to a filesystems like /proc.
+
+    mmap, munmap: map or unmap files or devices into memory
+     void *mmap(void *addr, size_t length, int prot, int flags,
+                      int fd, off_t offset);
+     int munmap(void *addr, size_t length);
+      mmap()  creates a new mapping in the virtual address space of the calling process.
+        addr -- the starting address for the new mapping. If NULL, the kernel chooses the address at which to create the mapping
+        length -- specifies the length of the mapping
+        prot -- describes the memory protection of the mapping
+            PROT_EXEC  Pages may be executed.
+            PROT_READ  Pages may be read.
+            PROT_WRITE Pages may be written.
+            PROT_NONE  Pages may not be accessed
+        flags -- determines whether updates to the mapping are visible to other processes mapping the same region
+            MAP_SHARED      Share  this  mapping
+            MAP_PRIVATE Create a private copy-on-write mapping.
+
+    Memory mapped by mmap() is preserved across fork(2), with the same attributes. Use of a mapped region can result in these signals:
+    SIGSEGV            Attempted write into a region mapped as read-only.
+
+    Can I ftruncate a shared memory object after it has ben mmap'ed? You can truncate the underlying file anytime
+
+27)
+    Anonymous Mapping: MAP_ANONYMOUS
+        The mapping is not backed by any file;
+        its contents are initialized to zero.
+        The fd and offset arguments are ignored;
+
+    man 2 msync. One key issue with memory-mapped files is the timing of when updates get copied back into the file on disk. For instance, if another process opens and reads the file using read(), will this other process see any updates that were written to the memory-mapped region? The answer is that it depends on a number of timing factors.
+        - The first factor is the kernel itself. When a file is mapped into memory with mmap(), the kernel will occasionally trigger a write to copy updated portions back to disk.
+        - A second factor is the file system of the underlying file. Some file systems do not commit changes to the file until the writing process has closed its connection to the file.
+
+    Processes can insert control over this issue by using the msync() function. This function takes a flags parameter that can initiate a synchronous, blocking write (MS_SYNC) or an asynchronous, non-blocking one (MS_ASYNC). In the case of the asynchronous write, the data will get copied to disk at a later point; however, the updated data would be immediately available to any process that reads from the file with read().
+
+    Memory Mapped I/O:
+    Memory-mapped I/O lets us map a file on disk into a buffer in memory so that
+        when we fetch bytes from the buffer, the corresponding bytes of the file are read.
+        when we store data in the buffer, the corresponding bytes are automatically written to the file
+    This lets us perform I/O without using read() or write(). To use this feature, we have to tell the kernel to map a given file to a region in memory. This is done by the mmap function.
+
+    How does the operating system load my process and libraries into memory? It maps the executable and library file contents into the address space of the process. If many programs only need read-access to the same file (e.g. /bin/bash, the C library) then the same physical memory can be shared between multiple processes
+
+    Memory-mapped files have several uses and advantages over traditional file access functions:
+        1. Memory-mapped files allow for multiple processes to share read-only access to a common file. Eg. the C standard library (glibc.so) is mapped into all processes running C programs. only one copy of the file needs to be loaded into physical memory, even if there are thousands of programs running.
+        2. Rather than using fseek() multiple times to jump to random file locations, the data can be accessed directly by using an index into an array.
+        3. Memory-mapped files provide more efficient access for initial reads. When read() is used to access a file, the file contents are first copied from disk into the kernel's buffer cache. Then, the data must be copied again into the process's user-mode memory for access. Memory-mapped files bypass the buffer cache, and the data is copied directly into the user-mode portion of memory.
+
+28)
+    Semaphores: Semaphores are used for process and thread synchronization. A semaphore is an integer whose value is never allowed to fall below zero. Two operations can be performed on semaphores:
+        - increment the semaphore value by one (sem_post(3))
+        - and decrement the semaphore value by one (sem_wait(3))
+    If the value of a semaphore is currently zero, then a sem_wait(3) operation will block until the value becomes greater than zero.
+
+    Types of Semaphores:
+        - Named: Named semaphores have a name, which is of the format /somename. The first character is a forward slash, followed by one or more characters, none of which is a slash.
+        - Unnamed Semaphores: The sem_init() function initializes the unnamed semaphore specified by the sem argument and assigns that semaphore the value specified by the value argument. Once the semaphore has been successfully initializes, you can use it in subsequent calls to sem_wait and sem_post.
+
+    Message Queue: in pipe and queue, there is no boundary on message and no way to distinguish. But, here we can do it.$ man 7 mq_overview
+
+    POSIX message queues allow processes to exchange data in the form of messages. General usage for message queues is as follows:
+        1. Get a message queue descriptor with a call to the mq_open function.
+        2. Send and receive messages with calls to the mq_send and mq_receive functions.
+        3. Close the message queue with a call to the mq_close function.
+        4. Remove the message queue with a call to the mq_unlink function.
+
+    Once a message queue is open, you can send messages to another process using the mq_send function.
+        int mq_send(mqd_t mqdes, const char *msg_ptr, size_t msg_len, unsigned int msg_prio);
+        The mq_send function takes four parameters, including:
+            the message queue descriptor,
+            a pointer to a message buffer,
+            the size of the buffer, and
+            the message priority
+
+    The read/write permissions are checked along with the length of the message, the status of the message queue, and the message flag. If all checks are successful, the message is added to the message queue. If the queue is already full, the sending process can block until space in the queue becomes available. it can return immediately, if we set the O_NONBLOCK flag when it called the mq_open function.
+
+    Receiving Messages: Once a message has been placed on a queue, you can retrieve the message with a call to the mq_receive function.
+        ssize_t mq_receive(mqd_t mqdes, char *msg_ptr, size_t msg_len, unsigned int *msg_prio);
+        The mq_receive function includes four parameters:
+            the message queue descriptor,
+            a pointer to a buffer to hold the incoming message,
+            the size of the buffer,
+            and the priority of the message received (the priority is returned by the function)
+
+    The size of the buffer must be at least the size of the message queue's size attribute. When a process uses the mq_receive function to read a message from a queue, the queue may be empty. The receiving process can block until a message arrives in the queue, or it can return immediately, according to the state of the O_NONBLOCK flag established with a preceding call to the mq_open function.
+
+    If more than one process is waiting to receive a message when a message arrives at an empty queue, then the process with the highest priority that has been waiting the longest is selected to receive the message.
+
+    Asynchronous Notification of Messages: A process that wants to read a message from a message queue has three options:
+        - Set the queue to blocking mode, and wait for a message to be received by calling mq_receive
+        - Set the queue to non-blocking mode, and call mq_receive multiple times until a message is received
+        - Set the queue to non-blocking mode, and call mq_notify specifying a signal to be sent when the queue goes from empty to non-empty
+
+    The last option is a good choice for a realtime application.
+
+    The mq_notify function is used to register a request for asynchronous notification by a signal when a message becomes available on a previously empty queue. The process can then do useful work until a message arrives, at which time a signal is sent according to the signal information specified in the notification argument of the mq_notify function. After notification, the process can call mq_receive to receive the message.
+
+29)
+    Sockets: Sockets provide point-to-point, two-way communication between two processes (Unix domain sockets/IPC Sockets). Sockets can also be used to communicate between processes on different systems.(Network Sockets). Sockets are used in a Client-Server model.
+
+    Client - Server Setup: Sockets are used as follows:
+        each application: create a socket
+        server: bind its socket to a well-known address
+        client: locate server socket (via its well-known address) and “initiate communication” with the server
+
+    Socket Creation: Sockets are created using the socket syscall which returns a file descriptor to be used for further operations on the underlying socket
+        #include <sys/socket.h>
+        int socket(int domain, int type, int protocol);
+            Each triple hdomain, type, protocol identifies a different “species” of sockets
+                - domain differentiates if we are using IPC or network socket. If we use AF_UNIX, then it means IPC else network socket. domain: AF_UNIX, AF_INET, AF_INET6
+                - type: SOCK_STREAM, SOCK_DGRAM
+
+    SOCK_STREAM: TCP protocol, reliable communication
+    SOCK_DGRAM: UDP protocol, less reliable communication
+
+    The file descriptor returned upon success is used to further reference the socket, for both communication and setup purposes. we can't use normal file as socket, check in code how socket is being created.
+
+    Binding sockets to a well-known address: To allow connections from other, we need to bind sockets to well-known addresses using bind
+        #include <sys/socket.h>
+        int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+            - sockfd references the socket we want to bind
+            - addrlen/addr are, respectively, the length and the structure containing the well-known address we want to bind the socket to. The actual type of the addr structure depends on the socket domain.
+
+    The address format varies with the domain:
+        - UNIX domain uses pathnames
+        - Internet domains use IP addresses
+
+    bind is a generic system call that can bind sockets in any domain. each socket domain has its own variant of sockaddr. you will fill the domain-specific struct and cast it to struct sockaddr before passing it to bind. bind will use sa_family to determine how to use sa_data
+
+    struct sockaddr {
+        sa_family_t sa_family ; /* address family ( AF_ * ) */
+        char sa_data[14]; /* socket address ( size varies with the socket domain ) */
+    }
+
+    When you bind a unique name to a UNIX domain socket by using the bind function, a file is created on the file system for the socket. [ls -l] in file if start from s, it means it is socket.
+
+    The actual filesystem entry is created at bind time. If the file already exists, bind will fail. It’s up to you to remove stale sockets as needed.
+
+    Listening connections: listen allow to accept incoming connections
+        #include <sys/socket.h>
+        int listen (int sockfd, int backlog);
+            - sockfd references the socket we want to affect
+            - backlog specifies the maximum number of pending connections that the socket will keep. The backlog argument provides a hint to the implementation which the implementation shall use to limit the number of outstanding connections in the socket's listen queue.
+
+    Accepting connections:
+        #include <sys/socket.h>
+        int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+
+            server          client
+    -----------------------------------------
+    socket()
+    bind()
+    listen()
+                            socket()
+    accept()                connect()
+    send() & recv()         send() & recv()
+    close()                 close()
+
+    Once a connection between two peer socket is established, communication happens via read/write on the corresponding file descriptors.
+
+    Named Pipes vs Sockets:
+        Duplex
+            Stream sockets provide bi-directional communication while named pipes are uni-directional.
+        Distinct clients
+            Clients using sockets each have an independent connection to the server.
+            With named pipes, many clients may write to the pipe, but the server cannot distinguish the clients from each other-- the server has only one descriptor to read from the named pipe.
+            Since pipes have these limitations, UNIX domain sockets should be used if there are multiple clients that need to be distinguishable or which write long messages to the server.
+
+    Method of Creating and opening:
+        Sockets are created using socket and assigned their identity via bind.
+        Named pipes are created using mkfifo.
+        To connect to a UNIX domain socket the normal socket/connect calls are used, but a named pipe is written using regular file open and write
+        That makes them easier to use from a shell script for example.
+
+    For bidirectional communication you need to call bind(), listen() and so many. there's a beauty of a system call known as socketpair() this is nice enough to return to you a pair of already connected sockets!  The pair of sockets is unnamed; that is, they are not bound to a file path. No extra work is needed on your part; you can immediately use these socket descriptors for interprocess communication. If you want two separate programs to communicate (eg. you have an executable called client, and one called server), you can't use this mechanism.
+
+    Netstat is a command line utility that can be used to list out all the network (socket) connections on a system. It lists out all the:
+        tcp,
+        udp  and
+        the unix socket connections.
+
+    Linux Abstract Socket Namespace: Linux has a special feature: if the pathname for a UNIX domain socket begins with a null byte \0, its name is not mapped into the filesystem. Thus it won’t collide with other names in the filesystem. Also, when a server closes its UNIX domain listening socket in the abstract namespace, its file is deleted. with regular UNIX domain sockets, the file persists after the server closes it.
+
+    SOCK_STREAM vs SOCK_DGRAM: In case if AF_INET, SOCK_STREAM uses TCP (reliable) and SOCK_DGRAM used udp (unreliable). Unix sockets are always reliable. The difference between SOCK_STREAM and SOCK_DGRAM is in the semantics of consuming data out of the socket.
+
+    Stream socket allows for reading arbitrary number of bytes, but still preserving byte sequence. In other words, a sender might write 4K of data to the socket, and the receiver can consume that data byte by byte. The other way around is true too - sender can write several small messages to the socket that the receiver can consume in one read. Stream socket does not preserve message boundaries.
+
+    Datagram socket, on the other hand, does preserve these boundaries - one write by the sender always corresponds to one read by the receiver(even if receiver's buffer given to read(2) or recv(2) is smaller then that message). So if your application protocol has small messages with known upper bound on message size you are better off with SOCK_DGRAM since that's easier to manage.
+
+    If your protocol calls for arbitrary long message payloads, or is just an unstructured stream (like raw audio or something), then pick SOCK_STREAM and do the required buffering.
